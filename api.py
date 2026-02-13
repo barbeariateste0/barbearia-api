@@ -5,7 +5,7 @@ from flask_cors import CORS
 import os, time, secrets
 
 app = Flask(__name__)
-
+CORS(app, resources={r"/*": {"origins": "*"}})
 # Segredo simples partilhado (bridge usa o mesmo)
 BRIDGE_SECRET = os.environ.get("BRIDGE_SECRET", "muda-isto")
 
