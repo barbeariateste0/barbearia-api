@@ -7,7 +7,7 @@ app = Flask(__name__)
 CORS(app, resources={r"/*": {"origins": "*"}})
 
 # Segredo simples partilhado (bridge usa o mesmo)
-BRIDGE_SECRET = os.environ.get("BRIDGE_SECRET", "muda-isto")
+BRIDGE_SECRET = os.environ.get("BRIDGE_SECRET", "neves-12345")
 
 # fila para o bridge consumir (novas marcações)
 QUEUE = deque(maxlen=5000)
