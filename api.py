@@ -1,7 +1,7 @@
 from flask import Flask, request, jsonify
 from flask_cors import CORS
 from collections import deque
-import os, time, secrets 
+import os, time, secrets
 
 app = Flask(__name__)
 CORS(app, resources={r"/*": {"origins": "*"}})
@@ -12,22 +12,32 @@ BRIDGE_SECRET = os.environ.get("BRIDGE_SECRET", "neves-12345")
 BOOKINGS = {}  # id -> booking dict
 CHANGES = deque(maxlen=20000)  # fila de eventos p/ bridge
 
+
 def now_id():
     return str(int(time.time() * 1_000_000)) + "-" + secrets.token_hex(3)
+
 
 def bad(msg, code=400):
     return jsonify({"error": msg}), code
 
+
 def push_change(op, payload):
     CHANGES.append({
-        "op": op,               # "upsert" | "delete"
-        "payload": payload,     # booking ou {"id":...}
+        "op": op,           # "upsert" | "delete"
+        "payload": payload, # booking ou {"id":...}
         "ts": int(time.time())
     })
 
+
 @app.get("/")
 def home():
-    return jsonify({"ok": True, "service": "barbearia-api", "bookings": len(BOOKINGS), "changes": len(CHANGES)})
+    return jsonify({
+        "ok": True,
+        "service": "barbearia-api",
+        "bookings": len(BOOKINGS),
+        "changes": len(CHANGES)
+    })
+
 
 @app.post("/book")
 def book():
@@ -44,15 +54,15 @@ def book():
     bid = now_id()
     item = {
         "id": bid,
-        "name": str(data.get("name","")).strip(),
-        "phone": str(data.get("phone","")).strip(),
-        "email": str(data.get("email","")).strip(),
-        "service": str(data.get("service","")).strip(),
-        "barber": str(data.get("barber","")).strip(),
-        "date": str(data.get("date","")).strip(),   # AAAA-MM-DD
-        "time": t,                                  # HH:MM
+        "name": str(data.get("name", "")).strip(),
+        "phone": str(data.get("phone", "")).strip(),
+        "email": str(data.get("email", "")).strip(),
+        "service": str(data.get("service", "")).strip(),
+        "barber": str(data.get("barber", "")).strip(),
+        "date": str(data.get("date", "")).strip(),   # AAAA-MM-DD
+        "time": t,                                   # HH:MM
         "dur": int(float(data.get("dur", 30))),
-        "notes": str(data.get("notes","")).strip(),
+        "notes": str(data.get("notes", "")).strip(),
         "status": "Marcado",
         "created_at": int(time.time())
     }
@@ -60,6 +70,7 @@ def book():
     BOOKINGS[bid] = item
     push_change("upsert", item)
     return jsonify({"ok": True, "id": bid})
+
 
 # Bridge puxa alterações (novos/updates/deletes)
 @app.get("/pull")
@@ -77,6 +88,7 @@ def pull():
     new_cursor = min(cursor + len(out), len(changes_list))
 
     return jsonify({"ok": True, "cursor": new_cursor, "items": out})
+
 
 # Bridge envia alterações vindas do PC (apagar/cancelar/editar)
 @app.post("/sync")
@@ -106,18 +118,14 @@ def sync():
             bid = payload.get("id")
             if not bid:
                 continue
-            # guarda/atualiza o booking
             BOOKINGS[bid] = {**BOOKINGS.get(bid, {}), **payload}
             push_change("upsert", BOOKINGS[bid])
             applied += 1
 
     return jsonify({"ok": True, "applied": applied})
 
-# (para a página saber o que está ocupado)
-@app.get("/busy")
-def busy():
-    date = request.args.get("date", "")
-    barber = request.args.get("barber", "")
+
+def _busy_items(date: str = "", barber: str = ""):
     out = []
     for b in BOOKINGS.values():
         if date and b.get("date") != date:
@@ -126,5 +134,31 @@ def busy():
             continue
         if b.get("status") == "Cancelado":
             continue
-        out.append({"id": b["id"], "time": b["time"], "dur": b.get("dur", 30), "status": b.get("status", "Marcado")})
-    return jsonify({"ok": True, "items": out})
+        out.append({
+            "id": b["id"],
+            "time": b["time"],
+            "dur": b.get("dur", 30),
+            "status": b.get("status", "Marcado")
+        })
+    return out
+
+
+# (para a página saber o que está ocupado)
+@app.get("/busy")
+def busy():
+    date = request.args.get("date", "")
+    barber = request.args.get("barber", "")
+    return jsonify({"ok": True, "items": _busy_items(date, barber)})
+
+
+# Alias para compatibilidade com o frontend que chama /day (evita 404)
+@app.get("/day")
+def day():
+    date = request.args.get("date", "")
+    barber = request.args.get("barber", "")
+    return jsonify({"ok": True, "items": _busy_items(date, barber)})
+
+
+if __name__ == "__main__":
+    # Ajusta host/port se precisares
+    app.run(host="0.0.0.0", port=int(os.environ.get("PORT", "5000")))
