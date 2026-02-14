@@ -6,7 +6,7 @@ import os, time, secrets
 app = Flask(__name__)
 CORS(app, resources={r"/*": {"origins": "*"}})
 
-BRIDGE_SECRET = os.environ.get("BRIDGE_SECRET", "muda-isto")
+BRIDGE_SECRET = os.environ.get("BRIDGE_SECRET", "neves-12345")
 
 # Estado central (memória) — no free tier reinicia se dormir (ok p/ já)
 BOOKINGS = {}  # id -> booking dict
